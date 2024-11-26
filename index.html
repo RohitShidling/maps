@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nearby Hospitals</title>
+
+    <!-- Leaflet.js CSS for the map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+
+    <!-- Leaflet.js JS -->
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+</head>
+<body>
+
+    <h2>Nearby Hospitals Based on Live Location</h2>
+
+    <!-- Map Container -->
+    <div id="map" style="width: 100%; height: 600px;"></div>
+
+    <script>
+        const apiKey = "AlzaSy3csw6K5h_sDszF7_PPBSvsOcvR4iEk3kY"; // Replace with your GoMaps API key
+        let userLat, userLon;
+        let map;
+        let userMarker;
+
+        // Initialize the map
+        map = L.map('map').setView([0, 0], 13); // Initial coordinates will be updated later
+
+        // Add a tile layer to the map (OpenStreetMap)
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19
+        }).addTo(map);
+
+        // Function to find nearby hospitals
+        function findNearbyHospitals(lat, lon) {
+            const radius = 50000; // Search radius in meters (50 km)
+
+            // Fetch nearby hospitals from GoMaps API
+            fetch(`https://maps.gomaps.pro/maps/api/place/nearbysearch/json?location=${lat},${lon}&radius=${radius}&type=hospital&key=${apiKey}`)
+                .then(response => response.json())
+                .then(data => {
+                    // Clear previous hospital markers
+                    clearHospitalMarkers();
+
+                    if (data.results && data.results.length > 0) {
+                        // Loop through the results and add markers for each hospital
+                        data.results.forEach(hospital => {
+                            const { name, geometry, vicinity } = hospital;
+                            const hospitalLat = geometry.location.lat;
+                            const hospitalLon = geometry.location.lng;
+
+                            // Add marker for each hospital
+                            L.marker([hospitalLat, hospitalLon])
+                                .addTo(map)
+                                .bindPopup(`
+                                    <b>${name}</b><br>
+                                    ${vicinity}<br>
+                                    <a href="https://www.google.com/maps/dir/?api=1&destination=${hospitalLat},${hospitalLon}" target="_blank">Get Directions</a>
+                                `);
+                        });
+                    } else {
+                        alert("No hospitals found nearby.");
+                    }
+                })
+                .catch(error => console.error("Error fetching hospitals:", error));
+        }
+
+        // Function to clear previous hospital markers
+        function clearHospitalMarkers() {
+            map.eachLayer(function (layer) {
+                if (layer instanceof L.Marker && layer !== userMarker) {
+                    map.removeLayer(layer);
+                }
+            });
+        }
+
+        // Function to handle live location updates
+        function onLocationUpdate(position) {
+            userLat = position.coords.latitude;
+            userLon = position.coords.longitude;
+
+            // Update map to user's current location
+            map.setView([userLat, userLon], 13);
+
+            // Add/update marker for user's current location
+            if (userMarker) {
+                userMarker.setLatLng([userLat, userLon]);
+            } else {
+                // Create a red marker for the user's location
+                userMarker = L.marker([userLat, userLon], {
+                    icon: L.icon({
+                        iconUrl: 'https://upload.wikimedia.org/wikipedia/commons/4/47/PNG_transparency_demonstration_1.png',
+                        iconSize: [32, 32],
+                        iconAnchor: [16, 32], // Anchor to the bottom of the marker
+                    })
+                }).addTo(map).bindPopup("Your Location").openPopup();
+            }
+
+            // Find nearby hospitals based on the user's updated location
+            findNearbyHospitals(userLat, userLon);
+        }
+
+        // Function to handle geolocation error
+        function onLocationError(error) {
+            console.error("Error getting location:", error);
+            alert("Unable to retrieve your location.");
+        }
+
+        // Start tracking user's live location
+        if (navigator.geolocation) {
+            navigator.geolocation.watchPosition(onLocationUpdate, onLocationError, {
+                enableHighAccuracy: true,
+                maximumAge: 5000,
+                timeout: 10000
+            });
+        } else {
+            alert("Geolocation is not supported by this browser.");
+        }
+    </script>
+
+</body>
+</html>
